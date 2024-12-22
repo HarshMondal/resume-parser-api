@@ -8,7 +8,7 @@ This project allows you to upload a PDF resume, extract information from it, and
 
 - Upload PDF resumes.
 - Extract text-based resume data using Gemini API.
-- Store extracted data in a MySQL database (`resume_db`).
+- Store extracted data in a Postgres database (`resume_db`).
 - A simple FastAPI backend to handle requests and communicate with the database.
 - A clean HTML frontend to upload resumes and display parsed data.
 
@@ -60,7 +60,7 @@ Set up the Environment Variables:
 Database Setup:
 
 - Connect your database in the database.py file.
-- Ensure that you have created a MySQL database named resume_db and the resumes table with the structure provided above.
+- Ensure that you have created a Postgres database named resume_db and the resumes table with the structure provided above.
 
 ## Running the Project
 
