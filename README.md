@@ -2,7 +2,7 @@
 
 ## Overview
 
-This project allows you to upload a PDF resume, extract information from it, and store it in a MySQL database. It uses the Gemini API for parsing resume data and takes between 1 to 7 minutes for the API to respond, depending on the network and API load.
+This project allows you to upload a PDF resume, extract information from it, and store it in a Postgres database. It uses the Gemini API for parsing resume data and takes between 1 to 7 minutes for the API to respond, depending on the network and API load.
 
 ## Features
 
