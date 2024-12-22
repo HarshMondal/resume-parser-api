@@ -25,7 +25,7 @@ CREATE TABLE resumes (
     education TEXT,
     profession TEXT,
     job_experience TEXT,
-    projects TEXT,  -- Only titles
+    projects TEXT,  
     certification TEXT,
     linkedin TEXT,
     core_skills TEXT,
