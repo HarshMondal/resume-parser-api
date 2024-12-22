@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Resume Analyzer</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
+  <style>
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Resume Analyzer</h1>
+
+    <!----------- Navigation Buttons ------------>
+    <div class="tab-navigation">
+      <button id="uploadTabBtn">Resumes</button>
+      <button id="historyTabBtn">History</button>
+    </div>
+
+    <!------------ Upload Resume Section ------------>
+    <div id="uploadTab" class="tab-content active">
+      <div class="upload-section">
+        <input type="file" id="resumeUpload" accept="application/pdf" />
+        <button onclick="uploadResume()">Upload Resume</button>
+      </div>
+      <div id="loading" style="display: none;">Processing...</div>
+
+      <div id="result" class="card" style="display: none;">
+        <h2>Extracted Resume Content</h2>
+        <div id="resumeDetails" class="resume-details"></div>
+      </div>
+    </div>
+
+    <!------------ History Section ------------>
+    <div id="historyTab" class="tab-content">
+      <h2>Uploaded Resumes</h2>
+      <table border="1" id="resumeTable">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>profession</th>
+            <th>Resume Ratings</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="resumeTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    // Tab Switching Logic
+    const uploadTabBtn = document.getElementById("uploadTabBtn");
+    const historyTabBtn = document.getElementById("historyTabBtn");
+    const uploadTab = document.getElementById("uploadTab");
+    const historyTab = document.getElementById("historyTab");
+
+    uploadTabBtn.addEventListener("click", () => {
+      uploadTab.classList.add("active");
+      historyTab.classList.remove("active");
+    });
+
+    historyTabBtn.addEventListener("click", async () => {
+      uploadTab.classList.remove("active");
+      historyTab.classList.add("active");
+      await loadHistory(); // Load historical data
+    });
+
+    // Fetch Historical Data
+    async function loadHistory() {
+      const response = await fetch("http://127.0.0.1:8000/history"); // Backend endpoint
+      const resumes = await response.json();
+      const tableBody = document.getElementById("resumeTableBody");
+      tableBody.innerHTML = ""; // Clear table before adding new rows
+
+      resumes.forEach((resume) => {
+        const row = `
+          <tr>
+            <td>${resume.id}</td>
+            <td>${resume.name}</td>
+            <td>${resume.profession}</td>
+            <td>${resume.resume_rating}</td>
+            <td><button onclick="showDetails(${resume.id})">Details</button></td>
+          </tr>
+        `;
+        tableBody.innerHTML += row;
+      });
+    }
+
+    // Show Details
+    async function uploadResume() {
+      const fileInput = document.getElementById("resumeUpload");
+      const resultDiv = document.getElementById("result");
+      const resumeDetailsDiv = document.getElementById("resumeDetails");
+      const loadingIndicator = document.getElementById("loading");
+
+      if (!fileInput.files[0]) {
+        alert("Please select a file to upload.");
+        return;
+      }
+
+      loadingIndicator.style.display = "block";
+      resultDiv.style.display = "none";
+
+      try {
+        const file = fileInput.files[0];
+        const reader = new FileReader();
+
+        reader.onload = async function(event) {
+          const pdfData = new Uint8Array(event.target.result);
+          const pdfDoc = await pdfjsLib.getDocument(pdfData).promise;
+          let textContent = "";
+
+          for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+            const page = await pdfDoc.getPage(pageNum);
+            const text = await page.getTextContent();
+            text.items.forEach((item) => {
+              textContent += item.str + " ";
+            });
+          }
+
+          const response = await fetch("http://127.0.0.1:8000/upload", {  // Endpiont for upload 
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ resume_text: textContent }),
+          });
+
+          if (response.ok) {
+            const extractedData = await response.text();
+            const resumeData = JSON.parse(extractedData);
+
+            // Display fecthing of the uploaded pdf data
+            resumeDetailsDiv.innerHTML = `
+              <h3>Personal Details:</h3>
+              <p><strong>Name:</strong> ${resumeData.name}</p>
+              <p><strong>Email:</strong> ${resumeData.email}</p>
+              <p><strong>Contact Number:</strong> ${resumeData["contact no"]}</p>
+              <h3>Education:</h3>
+              <p>${resumeData.education}</p>
+              <h3>Professional Information:</h3>
+              <p><strong>Profession:</strong> ${resumeData.profession}</p>
+              <p><strong>Job Experience:</strong> ${resumeData["job experience"]}</p>
+              <h3>Skills:</h3>
+              <p><strong>Core Skills:</strong> ${resumeData.core_skills}</p>
+              <p><strong>Soft Skills:</strong> ${resumeData.soft_skills}</p>
+              <h3>LinkedIn Profile:</h3>
+        <p><a href="${resumeData.linkedin}" target="_blank">${resumeData.linkedin}</a></p>
+              <h3>Additional Information:</h3>
+              <p><strong>Improvement Areas:</strong> ${resumeData.improvement_areas}</p>
+              <p><strong>Upskill Suggestions:</strong> ${resumeData.upskill_suggestions}</p>
+              <p><strong>Other:</strong> ${resumeData.other}</p>
+              <p><strong> Overall Resume Rating: </strong> ${resumeData.resume_rating}</p>
+            `;
+            loadingIndicator.style.display = "none";
+            resultDiv.style.display = "block";
+          }
+        };
+
+        reader.readAsArrayBuffer(file);
+      } catch (error) {
+        console.error("Error during resume upload:", error);
+        loadingIndicator.style.display = "none";
+        alert("An error occurred while uploading the resume.");
+      }
+    }
+
+    // Show Details and switch to Resume Tab
+    async function showDetails(resumeId) {
+      // Fetch the resume details based on the ID
+      const response = await fetch(`http://127.0.0.1:8000/details/${resumeId}`); // Assuming you have a route for fetching details by ID
+      const resumeData = await response.json();
+
+      // Switch to the "Upload" Tab (which will show the resume details)
+      uploadTab.classList.add("active");
+      historyTab.classList.remove("active");
+
+      // Show the result section
+      const resultDiv = document.getElementById("result");
+      const resumeDetailsDiv = document.getElementById("resumeDetails");
+      const loadingIndicator = document.getElementById("loading");
+
+      loadingIndicator.style.display = "none";
+      resultDiv.style.display = "block";
+
+      // Display the fetched resume details
+      resumeDetailsDiv.innerHTML = `
+        <h3>Personal Details:</h3>
+        <p><strong>Name:</strong> ${resumeData.name}</p>
+        <p><strong>Email:</strong> ${resumeData.email}</p>
+        <p><strong>Contact Number:</strong> ${resumeData["contact no"]}</p>
+        <h3>Education:</h3>
+        <p>${resumeData.education}</p>
+        <h3>Professional Information:</h3>
+        <p><strong>Profession:</strong> ${resumeData.profession}</p>
+        <p><strong>Job Experience:</strong> ${resumeData["job experience"]}</p>
+        <h3>Skills:</h3>
+        <p><strong>Core Skills:</strong> ${resumeData.core_skills}</p>
+        <p><strong>Soft Skills:</strong> ${resumeData.soft_skills}</p>
+        <h3>LinkedIn Profile:</h3>
+        <p><a href="${resumeData.linkedin}" target="_blank">${resumeData.linkedin}</a></p>
+        <h3>Additional Information:</h3>
+        <p><strong>Improvement Areas:</strong> ${resumeData.improvement_areas}</p>
+        <p><strong>Upskill Suggestions:</strong> ${resumeData.upskill_suggestions}</p>
+        <p><strong>Other:</strong> ${resumeData.other}</p>
+        <p><strong> Overall Resume Rating: </strong> ${resumeData.resume_rating}</p>
+      `;
+    }
+
+  </script>
+</body>
+</html>
